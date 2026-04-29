@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>捕鱼管理后台</title>
+  <link rel="stylesheet" href="./src/styles/admin.css" />
+</head>
+<body>
+  <main class="adminShell">
+    <header class="adminHeader">
+      <div>
+        <p class="eyebrow">本机管理后台</p>
+        <h1>玩家游戏币管理</h1>
+      </div>
+      <button id="refreshBtn" type="button">刷新</button>
+    </header>
+
+    <section class="toolbar">
+      <form id="coinForm" class="coinForm">
+        <label>
+          玩家号
+          <input id="playerIdInput" name="playerId" autocomplete="off" placeholder="例如 P8A31F2" required />
+        </label>
+        <label>
+          加币数量
+          <input id="amountInput" name="amount" type="number" min="1" step="1" value="1000" required />
+        </label>
+        <button type="submit">加币</button>
+      </form>
+      <div id="message" class="message" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="tableWrap" aria-label="玩家列表">
+      <table>
+        <thead>
+          <tr>
+            <th>玩家号</th>
+            <th>金币</th>
+            <th>累计购买</th>
+            <th>累计消耗</th>
+            <th>累计捕获</th>
+            <th>最后在线</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="playersBody">
+          <tr><td colspan="7">加载中</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script type="module" src="./src/js/admin.js"></script>
+</body>
+</html>

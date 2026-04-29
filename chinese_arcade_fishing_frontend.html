@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>国潮像素捕鱼 H5 Demo</title>
+  <style>
+    * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #06192c; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    #gameWrap { position: relative; width: 100vw; height: 100vh; overflow: hidden; background: radial-gradient(circle at 50% 20%, #1e8fa8 0%, #0b4161 38%, #06192c 100%); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+    .topHud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; z-index: 5; pointer-events: none; }
+    .panel { min-width: 92px; padding: 8px 10px; border: 2px solid rgba(255, 220, 120, .9); border-radius: 12px; background: rgba(4, 18, 34, .68); color: #fff3b0; box-shadow: 0 0 12px rgba(255, 200, 64, .28), inset 0 0 10px rgba(255, 200, 64, .14); text-shadow: 0 2px 0 #000; }
+    .panel b { display: block; font-size: 12px; color: #8ef8ff; font-weight: 700; }
+    .panel span { font-size: 18px; font-weight: 900; letter-spacing: .5px; }
+    .bottomBar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(760px, calc(100vw - 18px)); display: grid; grid-template-columns: 64px 1fr 64px; gap: 10px; align-items: center; z-index: 6; }
+    .btn { height: 56px; border: 2px solid #ffe082; border-radius: 16px; background: linear-gradient(#ffde68, #d97918); color: #361600; font-weight: 1000; font-size: 18px; box-shadow: 0 5px 0 #7a3100, 0 0 16px rgba(255, 209, 64, .55); cursor: pointer; }
+    .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #7a3100, 0 0 12px rgba(255, 209, 64, .4); }
+    .cannonBox { height: 78px; border: 2px solid rgba(141, 244, 255, .8); border-radius: 22px; background: rgba(2, 17, 30, .68); display: flex; align-items: center; justify-content: center; gap: 8px; color: white; box-shadow: inset 0 0 18px rgba(0, 230, 255, .18), 0 0 20px rgba(0, 220, 255, .2); }
+    .fireBtn, .autoBtn { width: 94px; height: 56px; border-radius: 18px; border: 2px solid #fff2a2; color: white; font-size: 17px; font-weight: 1000; text-shadow: 0 2px 0 #640015; cursor: pointer; }
+    .fireBtn { background: linear-gradient(#ffef88, #ff5b2e 55%, #ac1634); box-shadow: 0 5px 0 #640015, 0 0 22px rgba(255, 64, 64, .62); }
+    .autoBtn { background: linear-gradient(#8df8ff, #167de0 55%, #173f9c); box-shadow: 0 5px 0 #08246b, 0 0 22px rgba(64, 210, 255, .55); }
+    .autoBtn.on { background: linear-gradient(#fff3a2, #ff9d1e 55%, #d02f17); box-shadow: 0 5px 0 #7a2100, 0 0 24px rgba(255, 201, 64, .7); }
+    .fireBtn:active, .autoBtn:active { transform: translateY(4px); filter: brightness(.96); }
+    .rate { min-width: 74px; text-align: center; color: #fff3b0; font-size: 14px; font-weight: 900; text-shadow: 0 2px 0 #000; }
+    .toast { position: absolute; left: 50%; top: 76px; transform: translateX(-50%); z-index: 7; color: #fff4a2; font-size: 20px; font-weight: 1000; text-shadow: 0 3px 0 #6c2600, 0 0 12px #ffdb4d; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-8px) scale(1.05); }
+    .hint { position: absolute; left: 50%; bottom: 106px; transform: translateX(-50%); color: rgba(215, 252, 255, .78); font-size: 12px; z-index: 5; text-align: center; text-shadow: 0 2px 0 #001; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="gameWrap">
+    <canvas id="game"></canvas>
+
+    <div class="topHud">
+      <div class="panel"><b>金币</b><span id="coinText">10000</span></div>
+      <div class="panel"><b>倍率</b><span id="rateText">10</span></div>
+      <div class="panel"><b>连击</b><span id="comboText">0</span></div>
+    </div>
+
+    <div id="toast" class="toast">捕获成功 +100</div>
+    <div class="hint">点击鱼自动锁定；手动 FIRE 单发；自动开火会持续打锁定目标，目标捕获后自动停止</div>
+
+    <div class="bottomBar">
+      <button class="btn" id="minusBtn">-</button>
+      <div class="cannonBox">
+        <div class="rate">炮值 <span id="powerText">10</span></div>
+        <button class="fireBtn" id="fireBtn">FIRE</button>
+        <button class="autoBtn" id="autoBtn">AUTO</button>
+        <div class="rate">锁定 <span id="lockText">无</span></div>
+      </div>
+      <button class="btn" id="plusBtn">+</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    const coinText = document.getElementById('coinText');
+    const rateText = document.getElementById('rateText');
+    const comboText = document.getElementById('comboText');
+    const powerText = document.getElementById('powerText');
+    const lockText = document.getElementById('lockText');
+    const toast = document.getElementById('toast');
+    const autoBtn = document.getElementById('autoBtn');
+
+    let W = 0, H = 0, DPR = 1;
+    let last = performance.now();
+    let coins = 10000;
+    let cannonPower = 10;
+    let combo = 0;
+    let aim = { x: 0, y: 0 };
+    let cannon = { x: 0, y: 0, angle: -Math.PI / 2 };
+    let fishList = [];
+    let bullets = [];
+    let nets = [];
+    let floatTexts = [];
+    let particles = [];
+    let bubbles = [];
+    let lockedFish = null;
+    let autoFire = false;
+    let autoFireCooldown = 0;
+
+    // 捕鱼概率核心：鱼的倍率 rate 决定血量和奖励。
+    // 平台抽水 1% 时，RTP = 99%。
+    // 例如 10 倍鱼：鱼有 10 格血；每次物理命中有 99% 概率成为有效命中并扣 1 格血。
+    // 所以平均需要 10 / 0.99 = 10.10 次物理命中，打死后奖励 = 炮值 × 10。
+    const PLATFORM_RTP = 0.99;
+    const fishTypes = [
+      { key: 'blue', name: '青鱼', hp: 2, speed: 62, size: 34, color: '#31d9ff', accent: '#eaffff', rate: 2 },
+      { key: 'redKoi', name: '红鲤', hp: 4, speed: 52, size: 42, color: '#ff4b43', accent: '#ffd36a', rate: 4 },
+      { key: 'goldKoi', name: '金锦鲤', hp: 8, speed: 45, size: 48, color: '#ffcf35', accent: '#fff3a6', rate: 8 },
+      { key: 'lantern', name: '灯笼鱼', hp: 12, speed: 40, size: 46, color: '#9e5cff', accent: '#5ff6ff', rate: 12 },
+      { key: 'jelly', name: '水母', hp: 18, speed: 34, size: 54, color: '#76f8ff', accent: '#d3a4ff', rate: 18 },
+      { key: 'turtle', name: '玄武龟', hp: 28, speed: 24, size: 60, color: '#2bc777', accent: '#ffd86e', rate: 28 },
+      { key: 'dragonFish', name: '龙鱼', hp: 45, speed: 36, size: 62, color: '#ff663a', accent: '#ffd84e', rate: 45 },
+      { key: 'boss', name: '金龙', hp: 120, speed: 21, size: 96, color: '#ffd337', accent: '#ff4242', rate: 120 }
+    ];
+
+    function resize() {
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth; H = window.innerHeight;
+      canvas.width = Math.floor(W * DPR);
+      canvas.height = Math.floor(H * DPR);
+      canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      cannon.x = W / 2; cannon.y = H - 52;
+      aim.x = W / 2; aim.y = H / 2;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.add('show');
+      clearTimeout(showToast.t);
+      showToast.t = setTimeout(() => toast.classList.remove('show'), 680);
+    }
+
+    function spawnFish(forceBoss = false) {
+      let type = forceBoss ? fishTypes[7] : weightedFish();
+      const fromLeft = Math.random() < 0.5;
+      const y = rand(70, H - 170);
+      const size = type.size;
+      fishList.push({
+        id: Math.random().toString(36).slice(2),
+        type,
+        x: fromLeft ? -size - rand(0, 120) : W + size + rand(0, 120),
+        y,
+        dir: fromLeft ? 1 : -1,
+        speed: type.speed * rand(.82, 1.22),
+        size,
+        phase: rand(0, Math.PI * 2),
+        hitFlash: 0,
+        dead: false,
+        deathT: 0,
+        hitCount: 0,
+        hp: type.hp,
+        maxHp: type.hp
+      });
+    }
+
+    function weightedFish() {
+      const roll = Math.random();
+      if (roll < .30) return fishTypes[0];
+      if (roll < .52) return fishTypes[1];
+      if (roll < .68) return fishTypes[2];
+      if (roll < .80) return fishTypes[3];
+      if (roll < .89) return fishTypes[4];
+      if (roll < .95) return fishTypes[5];
+      if (roll < .99) return fishTypes[6];
+      return fishTypes[7];
+    }
+
+    for (let i = 0; i < 16; i++) spawnFish(i === 0);
+    for (let i = 0; i < 28; i++) bubbles.push({ x: rand(0, W), y: rand(0, H), r: rand(1, 4), s: rand(10, 38), a: rand(.12, .42) });
+
+    function fire() {
+      if (coins < cannonPower) { showToast('金币不足'); stopAutoFire(); return; }
+      coins -= cannonPower;
+      updateHud();
+      const target = lockedFish && !lockedFish.dead ? lockedFish : aim;
+      const dx = target.x - cannon.x;
+      const dy = target.y - cannon.y;
+      const ang = Math.atan2(dy, dx);
+      bullets.push({
+        x: cannon.x,
+        y: cannon.y,
+        vx: Math.cos(ang) * 720,
+        vy: Math.sin(ang) * 720,
+        power: cannonPower,
+        life: 4.6,
+        maxLife: 4.6,
+        angle: ang,
+        hitFishIds: new Set(),
+        bounce: 0,
+        maxBounce: 8
+      });
+      createMuzzle(cannon.x, cannon.y, ang);
+    }
+
+    function startAutoFire() {
+      if (!lockedFish || lockedFish.dead) { showToast('先点击一条鱼锁定'); return; }
+      autoFire = true;
+      autoBtn.classList.add('on');
+      autoBtn.textContent = 'STOP';
+      autoFireCooldown = 0;
+      updateHud();
+    }
+
+    function stopAutoFire() {
+      autoFire = false;
+      autoBtn.classList.remove('on');
+      autoBtn.textContent = 'AUTO';
+      updateHud();
+    }
+
+    function updateHud() {
+      coinText.textContent = Math.floor(coins);
+      rateText.textContent = cannonPower;
+      powerText.textContent = cannonPower;
+      comboText.textContent = combo;
+      lockText.textContent = lockedFish && !lockedFish.dead ? lockedFish.type.name : '无';
+    }
+
+    document.getElementById('fireBtn').addEventListener('pointerdown', fire);
+    document.getElementById('plusBtn').addEventListener('pointerdown', () => { cannonPower = clamp(cannonPower + 10, 10, 100); updateHud(); });
+    document.getElementById('minusBtn').addEventListener('pointerdown', () => { cannonPower = clamp(cannonPower - 10, 10, 100); updateHud(); });
+    autoBtn.addEventListener('pointerdown', () => autoFire ? stopAutoFire() : startAutoFire());
+
+    canvas.addEventListener('pointermove', e => setAim(e));
+    canvas.addEventListener('pointerdown', e => {
+      setAim(e);
+      const f = findFishAt(aim.x, aim.y);
+      if (f) {
+        lockedFish = f;
+        updateHud();
+      } else if (!autoFire) {
+        fire();
+      }
+    });
+
+    function setAim(e) {
+      const rect = canvas.getBoundingClientRect();
+      aim.x = e.clientX - rect.left;
+      aim.y = e.clientY - rect.top;
+    }
+
+    function findFishAt(x, y) {
+      for (let i = fishList.length - 1; i >= 0; i--) {
+        const f = fishList[i];
+        const d = Math.hypot(x - f.x, y - f.y);
+        if (!f.dead && d < f.size * .72) return f;
+      }
+      return null;
+    }
+
+    function createMuzzle(x, y, angle) {
+      for (let i = 0; i < 8; i++) {
+        const a = angle + rand(-.45, .45);
+        particles.push({ x, y, vx: Math.cos(a) * rand(80, 180), vy: Math.sin(a) * rand(80, 180), r: rand(2, 5), life: rand(.18, .34), max: .34, color: '#ffd84e' });
+      }
+    }
+
+    function getEffectiveHitProbability(fish, power) {
+      // 概率只负责判断这次物理命中是否“有效”。
+      // 有效命中：扣 1 格血。
+      // MISS：不扣血。
+      // RTP=0.99 时，1% 的命中会变成哑弹，平台抽水体现在这里。
+      return PLATFORM_RTP;
+    }
+
+    function getCatchProbability(fish, power) {
+      return getEffectiveHitProbability(fish, power);
+    }
+
+    function hitFish(f, bullet) {
+      if (bullet.hitFishIds.has(f.id)) return;
+      bullet.hitFishIds.add(f.id);
+      f.hitCount += 1;
+      f.hitFlash = .12;
+
+      const effectiveHit = Math.random() < getEffectiveHitProbability(f, bullet.power);
+      nets.push({ x: f.x, y: f.y, r: 8, maxR: f.size * .78, life: .28, power: bullet.power, dud: !effectiveHit });
+      for (let i = 0; i < 8; i++) particles.push({ x: f.x, y: f.y, vx: rand(-120, 120), vy: rand(-120, 80), r: rand(1.5, 4), life: rand(.24, .5), max: .5, color: effectiveHit ? pick(['#fff2a2', '#ffd84e']) : '#6ff7ff' });
+
+      if (!effectiveHit) {
+        floatTexts.push({ x: f.x, y: f.y - 10, text: 'MISS', life: .55, vy: -34, size: 16, miss: true });
+        return;
+      }
+
+      f.hp -= 1;
+      floatTexts.push({ x: f.x, y: f.y - 10, text: '-1', life: .42, vy: -30, size: 15, miss: true });
+
+      if (f.hp <= 0 && !f.dead) {
+        f.dead = true;
+        combo += 1;
+        const gain = bullet.power * f.type.rate;
+        coins += gain;
+        floatTexts.push({ x: f.x, y: f.y - 10, text: '+' + gain, life: 1, vy: -48, size: f.type.key === 'boss' ? 36 : 24 });
+        showToast(`捕获 ${f.type.name} +${gain}`);
+        explode(f.x, f.y, f.size, f.type.key === 'boss');
+        if (lockedFish === f) {
+          lockedFish = null;
+          stopAutoFire();
+        }
+        if (f.type.key === 'boss') setTimeout(() => spawnFish(true), 2600);
+        updateHud();
+      }
+    }
+
+    function explode(x, y, size, boss = false) {
+      const count = boss ? 80 : 24;
+      for (let i = 0; i < count; i++) {
+        const a = rand(0, Math.PI * 2);
+        const s = rand(40, boss ? 280 : 160);
+        particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: rand(2, boss ? 8 : 5), life: rand(.45, boss ? 1.1 : .72), max: 1.1, color: pick(['#ffd84e', '#fff2a2', '#ff5c42', '#67f7ff']) });
+      }
+      nets.push({ x, y, r: 16, maxR: boss ? 140 : 72, life: boss ? .75 : .42, power: 0, boom: true });
+    }
+
+    function update(dt) {
+      const targetForAim = lockedFish && !lockedFish.dead ? lockedFish : aim;
+      cannon.angle = Math.atan2(targetForAim.y - cannon.y, targetForAim.x - cannon.x);
+
+      if (autoFire) {
+        if (!lockedFish || lockedFish.dead || !fishList.includes(lockedFish)) {
+          lockedFish = null;
+          stopAutoFire();
+        } else {
+          aim.x = lockedFish.x;
+          aim.y = lockedFish.y;
+          autoFireCooldown -= dt;
+          if (autoFireCooldown <= 0) {
+            fire();
+            autoFireCooldown = .22;
+          }
+        }
+      }
+
+      if (Math.random() < dt * 1.25 && fishList.length < 24) spawnFish(false);
+
+      for (const b of bubbles) {
+        b.y -= b.s * dt;
+        b.x += Math.sin(performance.now() / 600 + b.y * .02) * dt * 8;
+        if (b.y < -10) { b.y = H + 10; b.x = rand(0, W); }
+      }
+
+      for (const f of fishList) {
+        f.phase += dt * 6;
+        if (!f.dead) {
+          f.x += f.dir * f.speed * dt;
+          f.y += Math.sin(f.phase) * 12 * dt;
+          f.hitFlash = Math.max(0, f.hitFlash - dt);
+        } else {
+          f.deathT += dt;
+          f.y -= 18 * dt;
+        }
+      }
+      fishList = fishList.filter(f => f.x > -180 && f.x < W + 180 && f.deathT < .9);
+      if (lockedFish && (!fishList.includes(lockedFish) || lockedFish.dead)) {
+        lockedFish = null;
+        stopAutoFire();
+      }
+
+      for (const bullet of bullets) {
+        bullet.x += bullet.vx * dt;
+        bullet.y += bullet.vy * dt;
+        bullet.life -= dt;
+        bullet.angle = Math.atan2(bullet.vy, bullet.vx);
+
+        // 子弹在屏幕内反弹，不是碰到边缘就消失。
+        if (bullet.x < 8 || bullet.x > W - 8) {
+          bullet.x = clamp(bullet.x, 8, W - 8);
+          bullet.vx *= -1;
+          bullet.bounce += 1;
+          createBounceSpark(bullet.x, bullet.y);
+        }
+        if (bullet.y < 8 || bullet.y > H - 96) {
+          bullet.y = clamp(bullet.y, 8, H - 96);
+          bullet.vy *= -1;
+          bullet.bounce += 1;
+          createBounceSpark(bullet.x, bullet.y);
+        }
+
+        for (const f of fishList) {
+          if (f.dead) continue;
+          const d = Math.hypot(bullet.x - f.x, bullet.y - f.y);
+          if (d < f.size * .52 + 5) {
+            hitFish(f, bullet);
+            bullet.life = 0;
+            break;
+          }
+        }
+      }
+      bullets = bullets.filter(b => b.life > 0 && b.bounce <= b.maxBounce);
+
+      for (const n of nets) { n.life -= dt; n.r += (n.maxR - n.r) * dt * 12; }
+      nets = nets.filter(n => n.life > 0);
+
+      for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .985; p.vy *= .985; p.life -= dt; }
+      particles = particles.filter(p => p.life > 0);
+
+      for (const t of floatTexts) { t.y += t.vy * dt; t.life -= dt; }
+      floatTexts = floatTexts.filter(t => t.life > 0);
+    }
+
+    function createBounceSpark(x, y) {
+      for (let i = 0; i < 5; i++) particles.push({ x, y, vx: rand(-70, 70), vy: rand(-70, 70), r: rand(1.5, 3), life: .22, max: .22, color: '#8ef8ff' });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      drawBackground();
+      drawAimLine();
+      for (const f of fishList) drawFish(f);
+      for (const b of bullets) drawBullet(b);
+      for (const n of nets) drawNet(n);
+      for (const p of particles) drawParticle(p);
+      drawCannon();
+      for (const t of floatTexts) drawFloatText(t);
+    }
+
+    function drawBackground() {
+      ctx.save();
+      ctx.globalAlpha = .25;
+      ctx.strokeStyle = '#7cf7ff';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 8; i++) {
+        const y = 90 + i * 74 + Math.sin(performance.now()/900 + i) * 8;
+        ctx.beginPath();
+        for (let x = -20; x < W + 20; x += 16) {
+          const yy = y + Math.sin(x * .02 + i) * 9;
+          if (x === -20) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      for (const b of bubbles) {
+        ctx.globalAlpha = b.a;
+        ctx.strokeStyle = '#d7ffff';
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      drawSeaweed(28, H - 40, 50); drawSeaweed(W - 46, H - 38, 64); drawSeaweed(W * .16, H - 44, 42);
+      ctx.restore();
+    }
+
+    function drawSeaweed(x, y, h) {
+      ctx.save(); ctx.strokeStyle = '#30de8a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath(); ctx.moveTo(x + i * 10, y);
+        ctx.quadraticCurveTo(x + i * 10 + Math.sin(performance.now()/600 + i) * 12, y - h * .5, x + i * 8, y - h);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawAimLine() {
+      ctx.save();
+      ctx.globalAlpha = autoFire ? .38 : .2;
+      ctx.strokeStyle = autoFire ? '#fff2a2' : '#fff6a8';
+      ctx.setLineDash([8, 10]);
+      ctx.lineWidth = autoFire ? 3 : 2;
+      ctx.beginPath(); ctx.moveTo(cannon.x, cannon.y); ctx.lineTo(aim.x, aim.y); ctx.stroke();
+      ctx.setLineDash([]);
+      if (lockedFish && !lockedFish.dead) {
+        ctx.globalAlpha = .85;
+        ctx.strokeStyle = '#fff2a2';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(lockedFish.x, lockedFish.y, lockedFish.size * .75 + Math.sin(performance.now()/120)*3, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(lockedFish.x - 10, lockedFish.y); ctx.lineTo(lockedFish.x + 10, lockedFish.y); ctx.moveTo(lockedFish.x, lockedFish.y - 10); ctx.lineTo(lockedFish.x, lockedFish.y + 10); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawFish(f) {
+      const s = f.size;
+      const flip = f.dir < 0 ? -1 : 1;
+      const wiggle = Math.sin(f.phase) * s * .07;
+      const alpha = f.dead ? Math.max(0, 1 - f.deathT * 1.2) : 1;
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.scale(flip, 1);
+      ctx.globalAlpha = alpha;
+      if (f.hitFlash > 0) {
+        ctx.shadowColor = '#fff8bd'; ctx.shadowBlur = 20;
+      } else {
+        ctx.shadowColor = f.type.accent; ctx.shadowBlur = f.type.key === 'boss' ? 24 : 10;
+      }
+
+      if (f.type.key === 'jelly') drawJelly(s, f, wiggle);
+      else if (f.type.key === 'turtle') drawTurtle(s, f, wiggle);
+      else if (f.type.key === 'boss') drawDragonBoss(s, f, wiggle);
+      else drawBasicFish(s, f, wiggle);
+
+      ctx.shadowBlur = 0;
+      if (!f.dead) drawProbabilityBar(f, -s * .5, -s * .72, s);
+      ctx.restore();
+    }
+
+    function drawBasicFish(s, f, wiggle) {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#062336';
+      ctx.fillStyle = f.hitFlash > 0 ? '#fff7bb' : f.type.color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * .46, s * .29, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = f.type.accent;
+      ctx.beginPath(); ctx.moveTo(-s*.42, 0); ctx.lineTo(-s*.72, -s*.23 + wiggle); ctx.lineTo(-s*.66, s*.22 + wiggle); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff8d0';
+      ctx.beginPath(); ctx.arc(s*.22, -s*.08, s*.07, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#06192c'; ctx.fillRect(s*.225, -s*.09, 3, 3);
+      ctx.strokeStyle = f.type.accent; ctx.lineWidth = 2;
+      for (let i = -1; i < 2; i++) { ctx.beginPath(); ctx.arc(-s*.05 + i*7, 2, s*.18, -.7, .7); ctx.stroke(); }
+      if (f.type.key === 'dragonFish') {
+        ctx.fillStyle = '#ffd84e';
+        ctx.beginPath(); ctx.moveTo(s*.02, -s*.3); ctx.lineTo(s*.16, -s*.52); ctx.lineTo(s*.24, -s*.24); ctx.fill(); ctx.stroke();
+      }
+      if (f.type.key === 'lantern') {
+        ctx.strokeStyle = '#9effff'; ctx.beginPath(); ctx.moveTo(s*.35, -s*.16); ctx.quadraticCurveTo(s*.58, -s*.42, s*.75, -s*.2); ctx.stroke();
+        ctx.fillStyle = '#e9ffff'; ctx.beginPath(); ctx.arc(s*.78, -s*.18, s*.08 + Math.sin(f.phase)*2, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    function drawJelly(s, f, wiggle) {
+      ctx.lineWidth = 3; ctx.strokeStyle = '#062336'; ctx.fillStyle = f.hitFlash > 0 ? '#fff7bb' : 'rgba(118,248,255,.72)';
+      ctx.beginPath(); ctx.arc(0, -s*.1, s*.32, Math.PI, 0); ctx.lineTo(s*.32, s*.05); ctx.quadraticCurveTo(0, s*.22, -s*.32, s*.05); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#d3a4ff'; ctx.lineWidth = 3;
+      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i*s*.1, s*.08); ctx.quadraticCurveTo(i*s*.12 + Math.sin(f.phase+i)*8, s*.35, i*s*.08, s*.52); ctx.stroke(); }
+      ctx.fillStyle = '#fff8d0'; ctx.beginPath(); ctx.arc(s*.11, -s*.12, 4, 0, Math.PI*2); ctx.arc(-s*.09, -s*.12, 4, 0, Math.PI*2); ctx.fill();
+    }
+
+    function drawTurtle(s, f, wiggle) {
+      ctx.lineWidth = 3; ctx.strokeStyle = '#062336';
+      ctx.fillStyle = f.hitFlash > 0 ? '#fff7bb' : '#176b55';
+      ctx.beginPath(); ctx.ellipse(0, 0, s*.44, s*.32, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#2bc777'; ctx.beginPath(); ctx.ellipse(s*.42, -s*.02, s*.18, s*.15, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffd86e';
+      for (let i=-1;i<=1;i++) { ctx.strokeRect(-s*.14 + i*s*.1, -s*.12, s*.09, s*.22); }
+      ctx.fillStyle = '#fff8d0'; ctx.beginPath(); ctx.arc(s*.49, -s*.06, 4, 0, Math.PI*2); ctx.fill();
+    }
+
+    function drawDragonBoss(s, f, wiggle) {
+      ctx.lineWidth = 4; ctx.strokeStyle = '#3a1600';
+      ctx.fillStyle = f.hitFlash > 0 ? '#fff7bb' : '#ffd337';
+      ctx.beginPath(); ctx.ellipse(0, 0, s*.44, s*.25, Math.sin(f.phase)*.05, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ff4242';
+      ctx.beginPath(); ctx.moveTo(-s*.38, 0); ctx.lineTo(-s*.7, -s*.28 + wiggle); ctx.lineTo(-s*.62, s*.28 + wiggle); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ff4242';
+      for (let i=-2;i<=2;i++) { ctx.beginPath(); ctx.moveTo(-s*.12+i*s*.1, -s*.24); ctx.lineTo(-s*.04+i*s*.1, -s*.45); ctx.lineTo(s*.03+i*s*.1, -s*.22); ctx.fill(); ctx.stroke(); }
+      ctx.fillStyle = '#fff8d0'; ctx.beginPath(); ctx.arc(s*.28, -s*.08, s*.055, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#fff0a0'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(-s*.1, 0, s*.22, 0, Math.PI*1.2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s*.1, .5, s*.18, Math.PI*.2, Math.PI*1.5); ctx.stroke();
+    }
+
+    function drawProbabilityBar(f, x, y, w) {
+      const ratio = clamp(f.hp / f.maxHp, 0, 1);
+      ctx.save(); ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x, y, w, 5);
+      ctx.fillStyle = ratio > .45 ? '#55ff88' : ratio > .2 ? '#ffe052' : '#ff4d4d'; ctx.fillRect(x, y, w * ratio, 5);
+      ctx.restore();
+    }
+
+    function drawBullet(b) {
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
+      ctx.shadowColor = '#fff2a2'; ctx.shadowBlur = 14;
+      ctx.fillStyle = '#ffe45e'; ctx.strokeStyle = '#5b2500'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -6); ctx.lineTo(-4, 0); ctx.lineTo(-8, 6); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawNet(n) {
+      ctx.save(); ctx.translate(n.x, n.y);
+      ctx.globalAlpha = n.dud ? .36 : (n.boom ? .6 : .72);
+      ctx.strokeStyle = n.dud ? '#8ef8ff' : (n.boom ? '#ffd84e' : '#dfffff'); ctx.lineWidth = n.boom ? 4 : 2;
+      ctx.beginPath(); ctx.arc(0, 0, n.r, 0, Math.PI * 2); ctx.stroke();
+      if (!n.boom) {
+        for (let i = 0; i < 8; i++) { const ang = i * Math.PI / 4; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(ang)*n.r, Math.sin(ang)*n.r); ctx.stroke(); }
+        for (let r = n.r*.35; r < n.r; r += n.r*.28) { ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke(); }
+      }
+      ctx.globalAlpha = 1; ctx.restore();
+    }
+
+    function drawParticle(p) {
+      ctx.save(); ctx.globalAlpha = clamp(p.life / p.max, 0, 1); ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+
+    function drawCannon() {
+      ctx.save(); ctx.translate(cannon.x, cannon.y); ctx.rotate(cannon.angle + Math.PI / 2);
+      ctx.shadowColor = '#ffd84e'; ctx.shadowBlur = 18;
+      ctx.fillStyle = '#d13c30'; ctx.strokeStyle = '#401200'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.roundRect(-16, -54, 32, 68, 10); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffd84e'; ctx.beginPath(); ctx.roundRect(-10, -66, 20, 28, 8); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.save(); ctx.translate(cannon.x, cannon.y + 12);
+      ctx.fillStyle = '#1e5d79'; ctx.strokeStyle = '#062336'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(0, 0, 38, Math.PI, 0); ctx.lineTo(38, 22); ctx.lineTo(-38, 22); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff2a2'; ctx.font = '900 14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('龙炮', 0, 13);
+      ctx.restore();
+    }
+
+    function drawFloatText(t) {
+      ctx.save(); ctx.globalAlpha = clamp(t.life, 0, 1); ctx.font = `900 ${t.size}px system-ui`; ctx.textAlign = 'center'; ctx.lineWidth = 5;
+      ctx.strokeStyle = t.miss ? '#003d55' : '#7a2600'; ctx.fillStyle = t.miss ? '#8ef8ff' : '#fff2a2'; ctx.shadowColor = t.miss ? '#8ef8ff' : '#ffd84e'; ctx.shadowBlur = 14;
+      ctx.strokeText(t.text, t.x, t.y); ctx.fillText(t.text, t.x, t.y); ctx.restore();
+    }
+
+    function loop(now) {
+      const dt = Math.min((now - last) / 1000, .033);
+      last = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+    updateHud();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

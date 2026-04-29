@@ -1,46 +1,57 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Fishing Joy - Standalone WebGL Fishing Game</title>
-    <meta name="description" content="Standalone browser fishing game built with PixiJS v8 and Tone.js. Run it locally with a static server and play in any modern browser.">
-    <meta name="keywords" content="Fishing Joy, WebGL Game, PixiJS v8, Tone.js, Browser Game, 捕鱼游戏">
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-        html, body {
-            margin: 0;
-            padding: 0;
-            background-color: #000;
-            overflow: hidden;
-            width: 100%;
-            height: 100%;
-        }
-        #game-container {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-    </style>
-    <script src="https://pixijs.download/v8.1.0/pixi.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>国潮像素捕鱼</title>
+  <link rel="stylesheet" href="./src/styles/game.css" />
 </head>
 <body>
-    <div id="game-container"></div>
-    <script src="src/ResourceManager.js"></script>
-    <script src="src/AudioManager.js"></script>
-    <script src="src/WaterFilter.js"></script>
-    <script src="src/CaptureRules.js"></script>
-    <script src="src/FishFormation.js"></script>
-    <script src="src/entities/Fish.js"></script>
-    <script src="src/entities/Bullet.js"></script>
-    <script src="src/entities/Cannon.js"></script>
-    <script src="src/entities/AccuracyBar.js"></script>
-    <script src="src/entities/Player.js"></script>
-    <script src="src/Main.js"></script>
+  <main id="gameWrap">
+    <canvas id="game" aria-label="国潮像素捕鱼游戏画布"></canvas>
+
+    <section class="topHud" aria-label="游戏状态">
+      <div class="panel playerPanel">
+        <b>玩家号</b>
+        <span id="playerIdText">连接中</span>
+      </div>
+      <div class="panel">
+        <b>金币</b>
+        <span id="coinText">0</span>
+      </div>
+      <div class="panel">
+        <b>倍率</b>
+        <span id="rateText">10</span>
+      </div>
+      <div class="panel">
+        <b>连击</b>
+        <span id="comboText">0</span>
+      </div>
+    </section>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="networkBanner" class="networkBanner" hidden>服务器未连接</div>
+
+    <section class="bottomBar" aria-label="炮台控制">
+      <button class="stepBtn" id="minusBtn" type="button" aria-label="降低炮值">-</button>
+      <div class="cannonBox">
+        <div class="meter">
+          <b>炮值</b>
+          <span id="powerText">10</span>
+        </div>
+        <div class="statusPill">
+          <b>锁定</b>
+          <span id="lockText">无</span>
+        </div>
+        <div class="statusPill compact">
+          <b>模式</b>
+          <span>长按连发</span>
+        </div>
+      </div>
+      <button class="stepBtn" id="plusBtn" type="button" aria-label="提高炮值">+</button>
+    </section>
+  </main>
+
+  <script type="module" src="./src/js/game.js"></script>
 </body>
 </html>

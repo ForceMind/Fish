@@ -1,0 +1,229 @@
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #06192c;
+  color: #f8fbff;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+#gameWrap {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(103, 239, 255, .22), transparent 28%),
+    radial-gradient(circle at 78% 18%, rgba(255, 210, 76, .16), transparent 23%),
+    linear-gradient(180deg, #146b88 0%, #0b4161 45%, #06192c 100%);
+}
+
+canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  image-rendering: pixelated;
+  cursor: crosshair;
+}
+
+.topHud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(110px, 1.3fr) repeat(3, minmax(82px, .75fr));
+  gap: 8px;
+  pointer-events: none;
+}
+
+.panel {
+  min-width: 0;
+  padding: 7px 9px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 221, 130, .9);
+  border-radius: 8px;
+  background: rgba(3, 17, 31, .72);
+  box-shadow: 0 0 12px rgba(255, 210, 70, .2), inset 0 0 12px rgba(103, 239, 255, .11);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .65);
+}
+
+.panel b {
+  display: block;
+  margin-bottom: 1px;
+  color: #8ef8ff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.panel span {
+  display: block;
+  overflow: hidden;
+  color: #fff3b0;
+  font-size: clamp(14px, 2.1vw, 20px);
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playerPanel span {
+  font-size: clamp(12px, 1.8vw, 16px);
+}
+
+.bottomBar {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 58px;
+  gap: 8px;
+  width: min(720px, calc(100vw - 16px));
+  transform: translateX(-50%);
+}
+
+.stepBtn {
+  width: 58px;
+  height: 58px;
+  border: 2px solid #ffe082;
+  border-radius: 8px;
+  background: linear-gradient(#ffdf68, #d97918);
+  color: #351500;
+  font-size: 28px;
+  font-weight: 1000;
+  box-shadow: 0 5px 0 #7a3100, 0 0 16px rgba(255, 209, 64, .45);
+  cursor: pointer;
+}
+
+.stepBtn:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #7a3100, 0 0 10px rgba(255, 209, 64, .34);
+}
+
+.cannonBox {
+  min-width: 0;
+  height: 74px;
+  display: grid;
+  grid-template-columns: minmax(74px, .75fr) minmax(118px, 1.25fr) minmax(94px, .95fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 2px solid rgba(141, 244, 255, .82);
+  border-radius: 8px;
+  background: rgba(2, 17, 30, .73);
+  box-shadow: inset 0 0 18px rgba(0, 230, 255, .18), 0 0 20px rgba(0, 220, 255, .18);
+}
+
+.meter,
+.statusPill {
+  min-width: 0;
+  height: 54px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 242, 162, .5);
+  border-radius: 8px;
+  background: rgba(4, 24, 42, .66);
+  text-align: center;
+  text-shadow: 0 2px 0 #000;
+}
+
+.meter b,
+.statusPill b {
+  color: #8ef8ff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.meter span,
+.statusPill span {
+  overflow: hidden;
+  color: #fff2a2;
+  font-size: clamp(12px, 2.3vw, 18px);
+  font-weight: 1000;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast,
+.networkBanner {
+  position: absolute;
+  left: 50%;
+  z-index: 6;
+  transform: translateX(-50%);
+  pointer-events: none;
+  text-align: center;
+}
+
+.toast {
+  top: 76px;
+  max-width: min(560px, calc(100vw - 24px));
+  color: #fff4a2;
+  font-size: clamp(16px, 2.8vw, 22px);
+  font-weight: 1000;
+  opacity: 0;
+  text-shadow: 0 3px 0 #6c2600, 0 0 12px #ffdb4d;
+  transition: opacity .18s, transform .18s;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-7px) scale(1.03);
+}
+
+.networkBanner {
+  top: 56px;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 100, 90, .8);
+  border-radius: 8px;
+  background: rgba(80, 8, 10, .84);
+  color: #ffe3d8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .topHud {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .panel {
+    padding: 6px 8px;
+  }
+
+  .bottomBar {
+    grid-template-columns: 52px minmax(0, 1fr) 52px;
+  }
+
+  .stepBtn {
+    width: 52px;
+    height: 56px;
+  }
+
+  .cannonBox {
+    grid-template-columns: .8fr 1.2fr;
+    height: 72px;
+  }
+
+  .statusPill.compact {
+    display: none;
+  }
+}
