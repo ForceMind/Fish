@@ -10,45 +10,92 @@
   <main id="gameWrap">
     <canvas id="game" aria-label="国潮像素捕鱼游戏画布"></canvas>
 
-    <section class="topHud" aria-label="游戏状态">
-      <div class="panel playerPanel">
-        <b>玩家号</b>
-        <span id="playerIdText">连接中</span>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="networkBanner" class="networkBanner" hidden>服务器未连接</div>
+    <div id="lockTarget" class="lockTarget" hidden>
+      <b>锁定目标</b>
+      <span id="lockText">无</span>
+    </div>
+
+    <section class="bottomDock" aria-label="游戏状态与炮台控制">
+      <div class="controlRow">
+        <div class="cannonStepper">
+          <button class="stepBtn" id="minusBtn" type="button" aria-label="切换上一门炮">-</button>
+          <div class="cannonReadout">
+            <b id="cannonNameText">铜鲤炮</b>
+            <span>炮值 <strong id="powerText">10</strong></span>
+          </div>
+          <button class="stepBtn" id="plusBtn" type="button" aria-label="切换下一门炮">+</button>
+        </div>
+        <div class="modeGroup" aria-label="辅助开关">
+          <button class="modeBtn" id="lockBtn" type="button" aria-pressed="false">
+            <b>锁定</b>
+            <span id="lockModeText">关闭</span>
+          </button>
+          <button class="modeBtn" id="autoBtn" type="button" aria-pressed="false">
+            <b>自动开火</b>
+            <span id="autoModeText">关闭</span>
+          </button>
+        </div>
+        <div class="skillGroup" aria-label="技能">
+          <button class="skillBtn" id="bombBtn" type="button">
+            <b>爆炎弹</b>
+            <span id="bombCostText">120</span>
+          </button>
+          <button class="skillBtn" id="laserBtn" type="button">
+            <b>龙魂激光</b>
+            <span id="laserCostText">180</span>
+          </button>
+        </div>
       </div>
-      <div class="panel">
-        <b>金币</b>
-        <span id="coinText">0</span>
+      <div class="bottomHud" aria-label="游戏状态">
+        <div class="panel playerPanel">
+          <b>玩家号</b>
+          <span id="playerIdText">连接中</span>
+        </div>
+        <div class="panel">
+          <b>金币</b>
+          <span id="coinText">0</span>
+        </div>
+        <div class="panel">
+          <b>倍率</b>
+          <span id="rateText">10</span>
+        </div>
+        <div class="panel">
+          <b>连击</b>
+          <span id="comboText">0</span>
+        </div>
+        <div class="panel debugPanel">
+          <b>FPS</b>
+          <span id="fpsText">--</span>
+        </div>
       </div>
-      <div class="panel">
-        <b>倍率</b>
-        <span id="rateText">10</span>
-      </div>
-      <div class="panel">
-        <b>连击</b>
-        <span id="comboText">0</span>
+    </section>
+    <button id="roomBadge" class="roomBadge" type="button" aria-label="复制房间号">房间 --</button>
+    <button id="fishAtlasBtn" class="fishAtlasBtn" type="button">鱼图鉴</button>
+
+    <section id="fishAtlasOverlay" class="fishAtlasOverlay" aria-label="鱼图鉴" hidden>
+      <div class="fishAtlasDialog">
+        <div class="fishAtlasHeader">
+          <h2>鱼图鉴</h2>
+          <button id="fishAtlasCloseBtn" class="fishAtlasCloseBtn" type="button" aria-label="关闭鱼图鉴">×</button>
+        </div>
+        <div id="fishAtlasList" class="fishAtlasList"></div>
       </div>
     </section>
 
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <div id="networkBanner" class="networkBanner" hidden>服务器未连接</div>
-
-    <section class="bottomBar" aria-label="炮台控制">
-      <button class="stepBtn" id="minusBtn" type="button" aria-label="降低炮值">-</button>
-      <div class="cannonBox">
-        <div class="meter">
-          <b>炮值</b>
-          <span id="powerText">10</span>
-        </div>
-        <div class="statusPill">
-          <b>锁定</b>
-          <span id="lockText">无</span>
-        </div>
-        <div class="statusPill compact">
-          <b>模式</b>
-          <span>长按连发</span>
+    <section id="roomOverlay" class="roomOverlay" aria-label="房间">
+      <div class="roomDialog">
+        <h1>选择房间</h1>
+        <p>局域网玩家需要先创建房间，或者输入房间号加入同一个渔场。</p>
+        <div class="roomActions">
+          <button id="createRoomBtn" class="primaryRoomBtn" type="button">新建房间</button>
+          <div class="joinRoomBox">
+            <input id="roomCodeInput" type="text" inputmode="text" maxlength="6" autocomplete="off" placeholder="房间号" />
+            <button id="joinRoomBtn" type="button">加入房间</button>
+          </div>
         </div>
       </div>
-      <button class="stepBtn" id="plusBtn" type="button" aria-label="提高炮值">+</button>
     </section>
   </main>
 

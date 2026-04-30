@@ -1,4 +1,5 @@
 import { clamp, pick } from "./utils.js";
+import { cannonSkins } from "./config.js";
 
 export class Renderer {
   constructor(ctx) {
@@ -10,10 +11,14 @@ export class Renderer {
     ctx.clearRect(0, 0, state.W, state.H);
     this.drawBackground(state);
     this.drawAimLine(state);
+    this.drawSkillTarget(state);
     for (const fish of state.fishList) this.drawFish(fish);
     for (const bullet of state.bullets) this.drawBullet(bullet);
+    for (const bullet of state.remoteBullets || []) this.drawBullet(bullet);
+    for (const beam of state.beams || []) this.drawBeam(beam);
     for (const net of state.nets) this.drawNet(net);
     for (const particle of state.particles) this.drawParticle(particle);
+    this.drawRemoteCannons(state);
     this.drawCannon(state);
     for (const text of state.floatTexts) this.drawFloatText(text);
   }
@@ -68,17 +73,18 @@ export class Renderer {
     const { ctx } = this;
     const { cannon, aim, lockedFish } = state;
     ctx.save();
-    ctx.globalAlpha = state.isPointerFiring ? 0.34 : 0.2;
-    ctx.strokeStyle = state.isPointerFiring ? "#fff2a2" : "#fff6a8";
+    const firing = state.isPointerFiring || state.autoFire;
+    ctx.globalAlpha = firing ? 0.34 : 0.2;
+    ctx.strokeStyle = firing ? "#fff2a2" : "#fff6a8";
     ctx.setLineDash([8, 10]);
-    ctx.lineWidth = state.isPointerFiring ? 3 : 2;
+    ctx.lineWidth = firing ? 3 : 2;
     ctx.beginPath();
     ctx.moveTo(cannon.x, cannon.y);
     ctx.lineTo(aim.x, aim.y);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    if (lockedFish && !lockedFish.dead) {
+    if (state.lockMode && lockedFish && !lockedFish.dead) {
       const pulse = Math.sin(performance.now() / 120) * 3;
       ctx.globalAlpha = 0.9;
       ctx.strokeStyle = "#fff2a2";
@@ -93,6 +99,38 @@ export class Renderer {
       ctx.lineTo(lockedFish.x, lockedFish.y + 10);
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  drawSkillTarget(state) {
+    if (!state.pendingSkillKey) return;
+    const { ctx } = this;
+    const { cannon, aim } = state;
+    const isLaser = state.pendingSkillKey === "laser";
+    ctx.save();
+    ctx.globalAlpha = 0.86;
+    ctx.strokeStyle = isLaser ? "#8ef8ff" : "#ffd84e";
+    ctx.fillStyle = isLaser ? "rgba(142, 248, 255, .12)" : "rgba(255, 216, 78, .12)";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 7]);
+    if (isLaser) {
+      ctx.beginPath();
+      ctx.moveTo(cannon.x, cannon.y);
+      ctx.lineTo(aim.x, aim.y);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(aim.x, aim.y, Math.max(54, Math.min(state.W, state.H) * 0.08), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(aim.x - 13, aim.y);
+    ctx.lineTo(aim.x + 13, aim.y);
+    ctx.moveTo(aim.x, aim.y - 13);
+    ctx.lineTo(aim.x, aim.y + 13);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -112,12 +150,14 @@ export class Renderer {
       ctx.shadowBlur = 20;
     } else {
       ctx.shadowColor = fish.type.accent;
-      ctx.shadowBlur = fish.type.key === "boss" ? 24 : 10;
+      ctx.shadowBlur = fish.type.boss ? 24 : 10;
     }
 
     if (fish.type.key === "jelly") this.drawJelly(size, fish);
     else if (fish.type.key === "turtle") this.drawTurtle(size, fish);
-    else if (fish.type.key === "boss") this.drawDragonBoss(size, fish, wiggle);
+    else if (fish.type.key === "manta") this.drawManta(size, fish, wiggle);
+    else if (fish.type.key === "whale" || fish.type.key === "whaleBoss") this.drawWhale(size, fish, wiggle);
+    else if (fish.type.boss) this.drawDragonBoss(size, fish, wiggle);
     else this.drawBasicFish(size, fish, wiggle);
 
     ctx.shadowBlur = 0;
@@ -162,6 +202,22 @@ export class Renderer {
       ctx.moveTo(size * 0.02, -size * 0.3);
       ctx.lineTo(size * 0.16, -size * 0.52);
       ctx.lineTo(size * 0.24, -size * 0.24);
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (fish.type.key === "phoenixFish") {
+      ctx.fillStyle = fish.type.accent;
+      for (let i = 0; i < 3; i += 1) {
+        ctx.beginPath();
+        ctx.ellipse(-size * 0.58 - i * size * 0.08, (i - 1) * size * 0.1 + wiggle * 0.4, size * 0.18, size * 0.07, -0.35 + i * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#fff7bb";
+      ctx.beginPath();
+      ctx.moveTo(size * 0.04, -size * 0.3);
+      ctx.lineTo(size * 0.2, -size * 0.54);
+      ctx.lineTo(size * 0.28, -size * 0.22);
       ctx.fill();
       ctx.stroke();
     }
@@ -229,16 +285,88 @@ export class Renderer {
     ctx.fill();
   }
 
+  drawManta(size, fish, wiggle) {
+    const { ctx } = this;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#07172b";
+    ctx.fillStyle = fish.hitFlash > 0 ? "#fff7bb" : fish.type.color;
+    ctx.beginPath();
+    ctx.moveTo(size * 0.48, -size * 0.02);
+    ctx.quadraticCurveTo(size * 0.1, -size * 0.42, -size * 0.56, -size * 0.16 + wiggle);
+    ctx.quadraticCurveTo(-size * 0.2, 0, -size * 0.56, size * 0.16 + wiggle);
+    ctx.quadraticCurveTo(size * 0.1, size * 0.42, size * 0.48, size * 0.02);
+    ctx.quadraticCurveTo(size * 0.36, 0, size * 0.48, -size * 0.02);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = fish.type.accent;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.1, 0);
+    ctx.quadraticCurveTo(-size * 0.42, size * 0.05, -size * 0.78, size * 0.26 + wiggle);
+    ctx.stroke();
+    ctx.fillStyle = "#fff8d0";
+    ctx.beginPath();
+    ctx.arc(size * 0.26, -size * 0.08, size * 0.045, 0, Math.PI * 2);
+    ctx.arc(size * 0.26, size * 0.08, size * 0.045, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawWhale(size, fish, wiggle) {
+    const { ctx } = this;
+    const boss = Boolean(fish.type.boss);
+    ctx.lineWidth = boss ? 4 : 3;
+    ctx.strokeStyle = "#062336";
+    ctx.fillStyle = fish.hitFlash > 0 ? "#fff7bb" : fish.type.color;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size * 0.52, size * 0.28, Math.sin(fish.phase) * 0.03, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = fish.type.accent;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.44, 0);
+    ctx.lineTo(-size * 0.78, -size * 0.2 + wiggle);
+    ctx.lineTo(-size * 0.68, 0);
+    ctx.lineTo(-size * 0.78, size * 0.2 + wiggle);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,.78)";
+    ctx.beginPath();
+    ctx.ellipse(size * 0.08, size * 0.1, size * 0.24, size * 0.08, -0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff8d0";
+    ctx.beginPath();
+    ctx.arc(size * 0.34, -size * 0.08, size * 0.05, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    if (boss) {
+      ctx.fillStyle = "#fff07a";
+      for (let i = -1; i <= 1; i += 1) {
+        ctx.beginPath();
+        ctx.moveTo(i * size * 0.08, -size * 0.24);
+        ctx.lineTo(i * size * 0.08 + size * 0.04, -size * 0.46);
+        ctx.lineTo(i * size * 0.08 + size * 0.1, -size * 0.24);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+  }
+
   drawDragonBoss(size, fish, wiggle) {
     const { ctx } = this;
     ctx.lineWidth = 4;
     ctx.strokeStyle = "#3a1600";
-    ctx.fillStyle = fish.hitFlash > 0 ? "#fff7bb" : "#ffd337";
+    ctx.fillStyle = fish.hitFlash > 0 ? "#fff7bb" : fish.type.color;
     ctx.beginPath();
     ctx.ellipse(0, 0, size * 0.44, size * 0.25, Math.sin(fish.phase) * 0.05, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#ff4242";
+    ctx.fillStyle = fish.type.accent;
     ctx.beginPath();
     ctx.moveTo(-size * 0.38, 0);
     ctx.lineTo(-size * 0.7, -size * 0.28 + wiggle);
@@ -259,7 +387,7 @@ export class Renderer {
     ctx.arc(size * 0.28, -size * 0.08, size * 0.055, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.strokeStyle = "#fff0a0";
+    ctx.strokeStyle = fish.type.accent;
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(-size * 0.1, 0, size * 0.22, 0, Math.PI * 1.2);
@@ -286,10 +414,10 @@ export class Renderer {
     ctx.save();
     ctx.translate(bullet.x, bullet.y);
     ctx.rotate(bullet.angle);
-    ctx.shadowColor = "#fff2a2";
+    ctx.shadowColor = bullet.remote ? "#8ef8ff" : "#fff2a2";
     ctx.shadowBlur = 14;
-    ctx.fillStyle = "#ffe45e";
-    ctx.strokeStyle = "#5b2500";
+    ctx.fillStyle = bullet.remote ? "#8ef8ff" : "#ffe45e";
+    ctx.strokeStyle = bullet.remote ? "#064150" : "#5b2500";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(14, 0);
@@ -306,9 +434,11 @@ export class Renderer {
     const { ctx } = this;
     ctx.save();
     ctx.translate(net.x, net.y);
-    ctx.globalAlpha = net.dud ? 0.36 : (net.boom ? 0.6 : 0.72);
-    ctx.strokeStyle = net.dud ? "#8ef8ff" : (net.boom ? "#ffd84e" : "#dfffff");
-    ctx.lineWidth = net.boom ? 4 : 2;
+    ctx.globalAlpha = net.dud ? 0.36 : (net.boom ? 0.68 : 0.72);
+    ctx.strokeStyle = net.dud ? "#8ef8ff" : (net.instantKill ? "#fff7bb" : (net.boom ? "#ffd84e" : "#dfffff"));
+    ctx.shadowColor = net.instantKill ? "#ffd84e" : "transparent";
+    ctx.shadowBlur = net.instantKill ? 24 : 0;
+    ctx.lineWidth = net.instantKill ? 5 : (net.boom ? 4 : 2);
     ctx.beginPath();
     ctx.arc(0, 0, net.r, 0, Math.PI * 2);
     ctx.stroke();
@@ -323,6 +453,14 @@ export class Renderer {
       for (let r = net.r * 0.35; r < net.r; r += net.r * 0.28) {
         ctx.beginPath();
         ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else if (net.instantKill) {
+      for (let i = 0; i < 12; i += 1) {
+        const angle = i * Math.PI / 6;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * net.r * 0.45, Math.sin(angle) * net.r * 0.45);
+        ctx.lineTo(Math.cos(angle) * net.r * 1.18, Math.sin(angle) * net.r * 1.18);
         ctx.stroke();
       }
     }
@@ -342,44 +480,160 @@ export class Renderer {
     ctx.restore();
   }
 
-  drawCannon(state) {
+  drawBeam(beam) {
     const { ctx } = this;
-    const { cannon } = state;
+    const alpha = clamp(beam.life / beam.max, 0, 1);
     ctx.save();
-    ctx.translate(cannon.x, cannon.y);
-    ctx.rotate(cannon.angle + Math.PI / 2);
-    ctx.shadowColor = "#ffd84e";
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = "#d13c30";
-    ctx.strokeStyle = "#401200";
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = "round";
+    ctx.shadowColor = beam.color;
+    ctx.shadowBlur = 24;
+    ctx.strokeStyle = beam.color;
+    ctx.lineWidth = beam.width;
+    ctx.beginPath();
+    ctx.moveTo(beam.x1, beam.y1);
+    ctx.lineTo(beam.x2, beam.y2);
+    ctx.stroke();
+    ctx.strokeStyle = "#ffffff";
+    ctx.globalAlpha = alpha * 0.82;
+    ctx.lineWidth = Math.max(3, beam.width * 0.34);
+    ctx.beginPath();
+    ctx.moveTo(beam.x1, beam.y1);
+    ctx.lineTo(beam.x2, beam.y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawRemoteCannons(state) {
+    const players = state.remotePlayers || [];
+    const count = Math.max(players.length, 1);
+    players.forEach((player, index) => {
+      const pose = state.getRemoteCannonPose?.(player, index, count) || { x: state.W / 2, y: 78 };
+      const x = pose.x;
+      const y = pose.y;
+      const aimPoint = state.getRemoteAimPoint?.(player, pose) || {
+        x: clamp(player.aimX ?? 0.5, 0, 1) * state.W,
+        y: state.waterTop + clamp(player.aimY ?? 0.5, 0, 1) * state.waterHeight
+      };
+      const remoteAngle = Number.isFinite(player.displayAngle)
+        ? player.displayAngle
+        : state.getRemoteShotAngle?.({ ...player, targetFishId: "" }, pose);
+      const angle = Number.isFinite(remoteAngle) ? remoteAngle : Math.atan2(aimPoint.y - y, aimPoint.x - x);
+      const skin = cannonSkins[player.cannonIndex] || cannonSkins[0];
+      this.drawCannonModel(x, y, angle, skin, {
+        scale: 0.72,
+        remote: true,
+        label: player.name || player.id,
+        coins: player.coins,
+        firing: performance.now() - (player.lastFireLocalAt || 0) < 180
+      });
+    });
+  }
+
+  drawCannon(state) {
+    const skin = cannonSkins[state.cannonIndex] || cannonSkins[0];
+    this.drawCannonModel(state.cannon.x, state.cannon.y, state.cannon.angle, skin, {
+      scale: 1,
+      remote: false,
+      label: skin.name,
+      firing: state.isPointerFiring || state.autoFire
+    });
+  }
+
+  drawCannonModel(x, y, angle, skin, options = {}) {
+    const { ctx } = this;
+    const scale = options.scale || 1;
+    const remote = Boolean(options.remote);
+    ctx.save();
+    ctx.translate(x, y + (remote ? -10 : 16) * scale);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = skin.base;
+    ctx.strokeStyle = "#062336";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.roundRect(-16, -54, 32, 68, 9);
+    ctx.ellipse(0, 0, 48, 24, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#ffd84e";
+    ctx.strokeStyle = skin.trim;
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.roundRect(-10, -66, 20, 28, 8);
-    ctx.fill();
+    ctx.ellipse(0, 0, 34, 14, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
 
     ctx.save();
-    ctx.translate(cannon.x, cannon.y + 12);
-    ctx.fillStyle = "#1e5d79";
-    ctx.strokeStyle = "#062336";
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.rotate(angle + Math.PI / 2);
+    ctx.shadowColor = skin.glow;
+    ctx.shadowBlur = options.firing ? 28 : 16;
+    ctx.strokeStyle = "#401200";
     ctx.lineWidth = 4;
+
+    ctx.fillStyle = skin.barrel;
     ctx.beginPath();
-    ctx.arc(0, 0, 38, Math.PI, 0);
-    ctx.lineTo(38, 22);
-    ctx.lineTo(-38, 22);
+    ctx.moveTo(-24, -10);
+    ctx.lineTo(-16, -66);
+    ctx.lineTo(16, -66);
+    ctx.lineTo(24, -10);
+    ctx.quadraticCurveTo(0, 4, -24, -10);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+
+    ctx.fillStyle = skin.body;
+    ctx.beginPath();
+    ctx.arc(0, -10, 31, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = skin.trim;
+    ctx.beginPath();
+    ctx.ellipse(0, -68, 27, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#06192c";
+    ctx.beginPath();
+    ctx.ellipse(0, -68, 14, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = skin.trim;
+    ctx.lineWidth = 5;
+    for (const yBand of [-46, -28]) {
+      ctx.beginPath();
+      ctx.moveTo(-17, yBand);
+      ctx.lineTo(17, yBand);
+      ctx.stroke();
+    }
+
+    if (options.firing) {
+      ctx.fillStyle = "#fff2a2";
+      ctx.shadowColor = "#fff2a2";
+      ctx.shadowBlur = 24;
+      ctx.beginPath();
+      ctx.arc(0, -86, 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(x, y + (remote ? -46 : 48) * scale);
     ctx.fillStyle = "#fff2a2";
-    ctx.font = "900 14px system-ui";
+    ctx.strokeStyle = "rgba(0,0,0,.7)";
+    ctx.lineWidth = 4;
+    ctx.font = `900 ${remote ? 12 : 13}px system-ui`;
     ctx.textAlign = "center";
-    ctx.fillText("龙炮", 0, 13);
+    const label = options.label || skin.name;
+    ctx.strokeText(label, 0, 0);
+    ctx.fillText(label, 0, 0);
+    if (remote) {
+      const coins = Number(options.coins || 0).toLocaleString("zh-CN");
+      ctx.fillStyle = "#8ef8ff";
+      ctx.font = "900 11px system-ui";
+      ctx.strokeText(coins, 0, 15);
+      ctx.fillText(coins, 0, 15);
+    }
     ctx.restore();
   }
 
@@ -390,10 +644,27 @@ export class Renderer {
     ctx.font = `900 ${text.size}px system-ui`;
     ctx.textAlign = "center";
     ctx.lineWidth = 5;
-    ctx.strokeStyle = text.miss ? "#003d55" : "#7a2600";
-    ctx.fillStyle = text.miss ? "#8ef8ff" : "#fff2a2";
-    ctx.shadowColor = text.miss ? "#8ef8ff" : "#ffd84e";
-    ctx.shadowBlur = 14;
+    if (text.rewardOwner === "remote") {
+      ctx.strokeStyle = "#06391f";
+      ctx.fillStyle = "#6cffae";
+      ctx.shadowColor = "#30de8a";
+      ctx.shadowBlur = text.jackpot ? 22 : 14;
+    } else if (text.rewardOwner === "self") {
+      ctx.strokeStyle = "#7a2600";
+      ctx.fillStyle = "#fff2a2";
+      ctx.shadowColor = "#ffd84e";
+      ctx.shadowBlur = text.jackpot ? 24 : 14;
+    } else if (text.critical) {
+      ctx.strokeStyle = "#6b1600";
+      ctx.fillStyle = "#ffb347";
+      ctx.shadowColor = "#ff5c42";
+      ctx.shadowBlur = 18;
+    } else {
+      ctx.strokeStyle = text.jackpot ? "#5d1600" : (text.miss ? "#003d55" : "#7a2600");
+      ctx.fillStyle = text.jackpot ? "#fff7bb" : (text.miss ? "#8ef8ff" : "#fff2a2");
+      ctx.shadowColor = text.jackpot ? "#ff5c42" : (text.miss ? "#8ef8ff" : "#ffd84e");
+      ctx.shadowBlur = text.jackpot ? 24 : 14;
+    }
     ctx.strokeText(text.text, text.x, text.y);
     ctx.fillText(text.text, text.x, text.y);
     ctx.restore();
